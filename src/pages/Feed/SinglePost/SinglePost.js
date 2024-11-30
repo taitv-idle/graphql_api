@@ -12,29 +12,64 @@ class SinglePost extends Component {
     content: ''
   };
 
-  componentDidMount() {
-    const postId = this.props.match.params.postId;
-    fetch('http://localhost:8080/feed/post' + postId)
-      .then(res => {
-        if (res.status !== 200) {
-          throw new Error('Failed to fetch status');
-        }
-        return res.json();
-      })
-      .then(resData => {
-        this.setState({
-          title: resData.post.title,
-          author: resData.post.creator.name,
-          date: new Date(resData.post.createdAt).toLocaleDateString('en-US'),
-          content: resData.post.content
-        });
-      })
-      .catch(err => {
-        console.log(err);
-      });
-  }
+    componentDidMount() {
+        const postId = this.props.match.params.postId;
 
-  render() {
+        const graphqlQuery = {
+            query: `
+            query FetchSinglePost($postId: ID!) {
+                post(id: $postId) {
+                    title
+                    content
+                    imageUrl
+                    creator {
+                        name
+                    }
+                    createdAt
+                }
+            }
+        `,
+            variables: {
+                postId: postId
+            }
+        };
+
+        fetch('http://localhost:8080/graphql', {
+            method: 'POST',
+            headers: {
+                Authorization: 'Bearer ' + this.props.token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(graphqlQuery)
+        })
+            .then(res => {
+                if (res.status !== 200 && res.status !== 201) {
+                    throw new Error('Failed to fetch post!');
+                }
+                return res.json();
+            })
+            .then(resData => {
+                if (resData.errors) {
+                    throw new Error('Fetching post failed!');
+                }
+
+                const { title, content, imageUrl, creator, createdAt } = resData.data.post;
+
+                this.setState({
+                    title: title,
+                    author: creator.name,
+                    image: 'http://localhost:8080/' + imageUrl,
+                    date: new Date(createdAt).toLocaleDateString('en-US'),
+                    content: content
+                });
+            })
+            .catch(err => {
+                console.error(err);
+            });
+    }
+
+
+    render() {
     return (
       <section className="single-post">
         <h1>{this.state.title}</h1>
